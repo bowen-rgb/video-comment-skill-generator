@@ -17,11 +17,19 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 ALLOWED_END_REASONS = {"no_more_comments", "platform_total_reached"}
 BLOCKED_REASONS = {"rate_limited", "captcha", "login_required", "risk_control", "unknown"}
 PLATFORMS = {"bilibili", "xiaohongshu"}
 METHODS = {"dom", "ocr"}
+EXPORT_KINDS = {
+    "bilibili": {"video", "comment"},
+    "xiaohongshu": {"note", "comment"},
+}
+FORBIDDEN_EXPORT_KEYS = {
+    "cookie", "cookies", "token", "password", "authorization", "session", "localstorage",
+}
 STOPWORDS = set("这个那个我们你们他们以及但是因为所以视频评论感觉真的就是一个可以没有什么比较还是".split())
 
 
@@ -84,6 +92,72 @@ def load_comments(path: Path) -> list[dict[str, Any]]:
         except json.JSONDecodeError as exc:
             raise ValueError(f"invalid stored JSONL at line {n}: {exc}") from exc
     return records
+
+
+def has_forbidden_export_key(value: object) -> bool:
+    if isinstance(value, dict):
+        return any(
+            str(key).casefold() in FORBIDDEN_EXPORT_KEYS or has_forbidden_export_key(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(has_forbidden_export_key(item) for item in value)
+    return False
+
+
+def valid_export_timestamp(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
+
+
+def validate_export_record(record: object) -> str | None:
+    """Validate the portable public-page JSONL contract before importing it."""
+    if not isinstance(record, dict):
+        return "record must be an object"
+    required = {"source", "kind", "url", "captured_at", "data"}
+    missing = required - record.keys()
+    if missing:
+        return f"missing required keys: {', '.join(sorted(missing))}"
+    source, kind = record["source"], record["kind"]
+    if source not in EXPORT_KINDS or kind not in EXPORT_KINDS[source]:
+        return "invalid source/kind combination"
+    parsed = urlparse(record["url"] if isinstance(record["url"], str) else "")
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return "url must be an absolute http(s) URL"
+    if not valid_export_timestamp(record["captured_at"]):
+        return "captured_at must be ISO-8601"
+    if not isinstance(record["data"], dict):
+        return "data must be an object"
+    if has_forbidden_export_key(record):
+        return "contains a forbidden secret/session-like key"
+    return None
+
+
+def validate_export(args: argparse.Namespace) -> None:
+    """Validate a browser-collected JSONL export without contacting a platform."""
+    errors: list[str] = []
+    accepted = 0
+    for line_number, raw in enumerate(Path(args.input).read_text(encoding="utf-8").splitlines(), 1):
+        if not raw.strip():
+            continue
+        try:
+            error = validate_export_record(json.loads(raw))
+        except json.JSONDecodeError as exc:
+            error = f"invalid JSON: {exc.msg}"
+        if error:
+            errors.append(f"line {line_number}: {error}")
+        else:
+            accepted += 1
+    for error in errors:
+        print(error, file=sys.stderr)
+    print(json.dumps({"accepted": accepted, "errors": len(errors)}, ensure_ascii=False))
+    if errors:
+        raise ValueError("export validation failed")
 
 
 def init_run(args: argparse.Namespace) -> None:
@@ -307,6 +381,9 @@ def generate_skills(args: argparse.Namespace) -> None:
     analyses = [read_json(path) for path in sorted(Path(args.analysis_dir).glob("**/analysis.json"))]
     if not analyses:
         raise ValueError("no analysis.json files found")
+    malformed = [str(path) for path in sorted(Path(args.analysis_dir).glob("**/analysis.json")) if "content" not in read_json(path)]
+    if malformed:
+        raise ValueError("invalid analysis.json (missing content): " + ", ".join(malformed))
     invalid = [a["content"].get("title", "unknown") for a in analyses if a.get("analysis_status") != "ready"]
     if invalid:
         raise ValueError("refusing skill generation from incomplete exports: " + ", ".join(invalid))
@@ -338,6 +415,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser("init-run"); p.add_argument("--out", required=True); p.add_argument("--platform", choices=sorted(PLATFORMS), required=True); p.add_argument("--content-id", required=True); p.add_argument("--content-kind", default="video"); p.add_argument("--url", required=True); p.add_argument("--title", required=True); p.add_argument("--topic"); p.set_defaults(func=init_run)
+    p = commands.add_parser("validate-export"); p.add_argument("--input", required=True); p.set_defaults(func=validate_export)
     p = commands.add_parser("append-batch"); p.add_argument("--run", required=True); p.add_argument("--input", required=True); p.set_defaults(func=append_batch)
     p = commands.add_parser("import-mediacrawler-jsonl"); p.add_argument("--run", required=True); p.add_argument("--input", required=True); p.set_defaults(func=import_mediacrawler_jsonl)
     p = commands.add_parser("run-mediacrawler"); p.add_argument("--platform", choices=["xhs", "bili"], required=True); p.add_argument("--login-type", default="qrcode"); p.add_argument("--crawl-type", default="detail"); p.add_argument("--backend-root", default="vendor/MediaCrawler"); p.add_argument("--uv-command", default="uv"); p.add_argument("--timeout", type=int, default=3600); p.add_argument("--ack-noncommercial", action="store_true"); p.set_defaults(func=run_mediacrawler)

@@ -12,7 +12,7 @@ from typing import Any
 LOGGER = logging.getLogger(__name__)
 PROJECT = Path(r"C:\Users\ROG\Documents\projects\video-comment-skill-generator")
 PROGRAM = PROJECT / "video_comment_skill_generator.py"
-ALLOWED_ACTIONS = {"init-run", "append-batch", "import-mediacrawler-jsonl", "run-mediacrawler", "finish", "summarize", "generate-skills", "status"}
+ALLOWED_ACTIONS = {"init-run", "validate-export", "append-batch", "import-mediacrawler-jsonl", "run-mediacrawler", "finish", "summarize", "generate-skills", "status"}
 
 
 def register(ctx: Any) -> None:
@@ -22,7 +22,7 @@ def register(ctx: Any) -> None:
             "video-comment",
             video_comment_command,
             description="Run comment export, completeness checks, summaries, and Skill generation.",
-            args_hint="<run-mediacrawler|import-mediacrawler-jsonl|init-run|append-batch|finish|summarize|generate-skills|status> [arguments]",
+            args_hint="<run-mediacrawler|validate-export|import-mediacrawler-jsonl|init-run|append-batch|finish|summarize|generate-skills|status> [arguments]",
         )
     except TypeError:
         ctx.register_command("video-comment", video_comment_command)
@@ -77,6 +77,6 @@ def video_comment_command(raw_args: str) -> str:
 def _help() -> str:
     return (
         "Usage: /video-comment <action> [arguments]\n"
-        "Actions: run-mediacrawler, import-mediacrawler-jsonl, init-run, append-batch, finish, summarize, generate-skills, status\n"
+        "Actions: run-mediacrawler, validate-export, import-mediacrawler-jsonl, init-run, append-batch, finish, summarize, generate-skills, status\n"
         "Example: /video-comment status --run runs/BV1"
     )
