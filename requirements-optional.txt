@@ -1,0 +1,2 @@
+# Public-page dynamic browser adapter only. Do not enable Scrapling stealth extras.
+scrapling[fetchers]
