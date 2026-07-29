@@ -12,7 +12,7 @@ from typing import Any
 LOGGER = logging.getLogger(__name__)
 PROJECT = Path(r"C:\Users\ROG\Documents\projects\video-comment-skill-generator")
 PROGRAM = PROJECT / "video_comment_skill_generator.py"
-ALLOWED_ACTIONS = {"init-run", "append-batch", "finish", "summarize", "generate-skills", "status"}
+ALLOWED_ACTIONS = {"init-run", "append-batch", "import-mediacrawler-jsonl", "run-mediacrawler", "finish", "summarize", "generate-skills", "status"}
 
 
 def register(ctx: Any) -> None:
@@ -22,7 +22,7 @@ def register(ctx: Any) -> None:
             "video-comment",
             video_comment_command,
             description="Run comment export, completeness checks, summaries, and Skill generation.",
-            args_hint="<init-run|append-batch|finish|summarize|generate-skills|status> [arguments]",
+            args_hint="<run-mediacrawler|import-mediacrawler-jsonl|init-run|append-batch|finish|summarize|generate-skills|status> [arguments]",
         )
     except TypeError:
         ctx.register_command("video-comment", video_comment_command)
@@ -36,8 +36,10 @@ def pre_llm_call(user_message: Any = "", **_: Any) -> dict[str, str] | None:
         return None
     return {
         "context": (
-            "[Video Comment Tool] For requested comment analysis, use the logged-in Chrome DevTools "
-            "session only for visible page navigation. After each visible pagination batch, write JSONL "
+            "[Video Comment Tool] Use the licensed MediaCrawler backend for Bilibili/Xiaohongshu "
+            "comment collection when its own configuration is prepared. For its JSONL comment output, "
+            "invoke /video-comment import-mediacrawler-jsonl. For direct browser collection, use the "
+            "logged-in Chrome DevTools session only for visible page navigation. After each visible pagination batch, write JSONL "
             "and invoke /video-comment append-batch. Invoke finish only with visible end-of-comments "
             "evidence. On CAPTCHA, rate limit, risk control, or inaccessible replies, invoke finish "
             "with --blocked and do not summarize or generate a Skill. Use /video-comment summarize "
@@ -75,6 +77,6 @@ def video_comment_command(raw_args: str) -> str:
 def _help() -> str:
     return (
         "Usage: /video-comment <action> [arguments]\n"
-        "Actions: init-run, append-batch, finish, summarize, generate-skills, status\n"
+        "Actions: run-mediacrawler, import-mediacrawler-jsonl, init-run, append-batch, finish, summarize, generate-skills, status\n"
         "Example: /video-comment status --run runs/BV1"
     )

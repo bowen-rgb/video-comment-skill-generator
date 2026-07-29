@@ -2,6 +2,20 @@
 
 Browser automation exports batches of **public, visible** Bilibili or Xiaohongshu comments to JSONL. This tool checkpoints, deduplicates, proves collection completion, creates an extractive evidence pack, then generates one Codex Skill per source item. With --merge-similar, it combines only analyses whose extracted topic terms overlap beyond the configured threshold.
 
+## MediaCrawler backend and license
+
+MediaCrawler is integrated as the optional Bilibili and Xiaohongshu collection backend. This repository is therefore distributed for non-commercial learning and research only under the Non-Commercial Learning License 1.1. Read LICENSE and NOTICE before use. Preserve both files in copies and modifications.
+
+Attribution: MediaCrawler by NanmiCoder / relakkes, https://github.com/NanmiCoder/MediaCrawler.
+
+For a configured MediaCrawler detail crawl, run:
+
+    python video_comment_skill_generator.py run-mediacrawler --platform xhs --ack-noncommercial
+
+Then import its JSONL comment output into an active run:
+
+    python video_comment_skill_generator.py import-mediacrawler-jsonl --run runs/XHS1 --input path/to/comments.jsonl
+
 The completeness gate is deliberate: a blocked or unfinished export cannot be summarized or turned into a Skill without an explicit manual override for the summary step, and it can never enter generate-skills.
 
 ## Commands

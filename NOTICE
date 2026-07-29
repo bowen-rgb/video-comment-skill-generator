@@ -1,0 +1,13 @@
+This project integrates MediaCrawler as an optional collection backend.
+
+MediaCrawler
+Copyright (c) 2024 relakkes@gmail.com
+Source: https://github.com/NanmiCoder/MediaCrawler
+License: Non-Commercial Learning License 1.1
+
+MediaCrawler supplies the Bilibili and Xiaohongshu browser-collection backend.
+This project adds an evidence-gated import, summarization, and Skill-generation
+layer. This combined distribution is for non-commercial learning and research
+only. Do not use it for large-scale crawling, platform disruption, commercial
+purposes, or evasion of CAPTCHA, rate limits, account restrictions, or risk
+controls. Preserve this NOTICE and LICENSE in any copy or modification.

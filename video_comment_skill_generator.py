@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -147,6 +148,64 @@ def append_batch(args: argparse.Namespace) -> None:
     print(json.dumps({"added": len(incoming), "duplicates": manifest["collection"]["duplicates"]}, ensure_ascii=False))
 
 
+def import_mediacrawler_jsonl(args: argparse.Namespace) -> None:
+    """Normalize MediaCrawler JSONL comments and append them to an active run."""
+    source = Path(args.input)
+    converted = []
+    for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid MediaCrawler JSONL at line {number}: {exc}") from exc
+        text = raw.get("content") or raw.get("comment_content") or raw.get("text") or raw.get("desc")
+        if not text:
+            continue
+        converted.append(
+            {
+                "id": raw.get("comment_id") or raw.get("id"),
+                "text": text,
+                "published_at": raw.get("create_time") or raw.get("publish_time"),
+                "parent_id": raw.get("parent_comment_id") or raw.get("parent_id"),
+                "like_count": raw.get("like_count") or raw.get("like_num") or 0,
+                "reply_count": raw.get("sub_comment_count") or raw.get("reply_count") or 0,
+                "source_method": "dom",
+                "evidence_ref": f"mediacrawler:{source.name}:{number}",
+            }
+        )
+    temporary = Path(args.run).resolve() / ".mediacrawler-import.jsonl"
+    try:
+        temporary.write_text("\n".join(json.dumps(item, ensure_ascii=False) for item in converted) + "\n", encoding="utf-8")
+        append_batch(argparse.Namespace(run=args.run, input=str(temporary)))
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def run_mediacrawler(args: argparse.Namespace) -> None:
+    """Run the licensed MediaCrawler backend with its own user-managed config."""
+    if not args.ack_noncommercial:
+        raise ValueError("pass --ack-noncommercial to confirm the MediaCrawler non-commercial learning license")
+    root = Path(args.backend_root).resolve()
+    entry = root / "main.py"
+    if not entry.is_file():
+        raise FileNotFoundError(f"MediaCrawler backend is missing: {entry}")
+    command = [
+        args.uv_command,
+        "run",
+        "main.py",
+        "--platform",
+        args.platform,
+        "--lt",
+        args.login_type,
+        "--type",
+        args.crawl_type,
+    ]
+    completed = subprocess.run(command, cwd=root, text=True, timeout=args.timeout, check=False)
+    if completed.returncode:
+        raise ValueError(f"MediaCrawler exited with status {completed.returncode}")
+
+
 def finish(args: argparse.Namespace) -> None:
     run = Path(args.run).resolve()
     manifest_path, _ = run_paths(run)
@@ -280,6 +339,8 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser("init-run"); p.add_argument("--out", required=True); p.add_argument("--platform", choices=sorted(PLATFORMS), required=True); p.add_argument("--content-id", required=True); p.add_argument("--content-kind", default="video"); p.add_argument("--url", required=True); p.add_argument("--title", required=True); p.add_argument("--topic"); p.set_defaults(func=init_run)
     p = commands.add_parser("append-batch"); p.add_argument("--run", required=True); p.add_argument("--input", required=True); p.set_defaults(func=append_batch)
+    p = commands.add_parser("import-mediacrawler-jsonl"); p.add_argument("--run", required=True); p.add_argument("--input", required=True); p.set_defaults(func=import_mediacrawler_jsonl)
+    p = commands.add_parser("run-mediacrawler"); p.add_argument("--platform", choices=["xhs", "bili"], required=True); p.add_argument("--login-type", default="qrcode"); p.add_argument("--crawl-type", default="detail"); p.add_argument("--backend-root", default="vendor/MediaCrawler"); p.add_argument("--uv-command", default="uv"); p.add_argument("--timeout", type=int, default=3600); p.add_argument("--ack-noncommercial", action="store_true"); p.set_defaults(func=run_mediacrawler)
     p = commands.add_parser("finish"); p.add_argument("--run", required=True); p.add_argument("--reason"); p.add_argument("--blocked"); p.add_argument("--evidence"); p.set_defaults(func=finish)
     p = commands.add_parser("summarize"); p.add_argument("--run", required=True); p.add_argument("--out"); p.add_argument("--max-terms", type=int, default=15); p.add_argument("--max-observations", type=int, default=12); p.add_argument("--allow-incomplete", action="store_true"); p.set_defaults(func=summarize_run)
     p = commands.add_parser("generate-skills"); p.add_argument("--analysis-dir", required=True); p.add_argument("--out", required=True); p.add_argument("--merge-similar", action="store_true"); p.add_argument("--merge-threshold", type=float, default=0.55); p.set_defaults(func=generate_skills)
