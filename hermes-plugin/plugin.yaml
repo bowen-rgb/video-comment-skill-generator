@@ -1,0 +1,7 @@
+name: video-comment-skill-generator
+version: 1.0.0
+description: Export visible Bilibili/Xiaohongshu comment batches and generate evidence-gated topic skills.
+author: Local
+kind: standalone
+provides_hooks:
+  - pre_llm_call
