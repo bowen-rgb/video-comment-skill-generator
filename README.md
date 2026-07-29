@@ -19,3 +19,7 @@ Each input JSONL line needs at least text; optional fields are id, published_at,
 Use the normal visible page in a user-authorized Chrome profile. The adapter must prefer DOM text, then use OCR only for text already visible in a screenshot. OCR records require source_method: "ocr", an evidence_ref pointing to the frame, and an ocr_confidence score. Do not automate CAPTCHAs, risk controls, login challenges, proxy rotation, or anti-detection behavior.
 
 The Chrome DevTools MCP adapter calls append-batch after each visible pagination batch and calls finish only after observing an explicit end-of-comments state. Any challenge, rate-limit page, or inaccessible reply thread must mark the run blocked; this prevents a misleading complete Skill.
+
+## Optional Scrapling provider
+
+For public pages that do not depend on the user's existing Chrome login, the project includes providers/scrapling_adapter.py. It uses Scrapling DynamicSession only; it deliberately excludes StealthySession, CAPTCHA solving, proxy rotation, fingerprint manipulation, and account automation. Its output follows the same JSONL and completion-evidence contract as the Chrome DevTools adapter.
